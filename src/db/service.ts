@@ -181,12 +181,60 @@ export class DatabaseService {
     return rows.map(row => this.getMessage(threadId, row.message_id)).filter(m => m !== null) as Message[];
   }
 
-  listMessagesByGroup(groupId: GroupId): Message[] {
-    const stmt = this.db.prepare(`
+  listMessagesByGroup(groupId: GroupId, limit?: number): Message[] {
+    const baseQuery = `
       SELECT thread_id, message_id FROM messages WHERE group_id = ? ORDER BY id DESC
-    `);
-    const rows = stmt.all(groupId) as { thread_id: string; message_id: string }[];
-    return rows.map(row => this.getMessage(row.thread_id, row.message_id)).filter(m => m !== null) as Message[];
+    `;
+    const stmt = typeof limit === "number" && limit > 0
+      ? this.db.prepare(`${baseQuery} LIMIT ?`)
+      : this.db.prepare(baseQuery);
+    const rows = (typeof limit === "number" && limit > 0
+      ? stmt.all(groupId, limit)
+      : stmt.all(groupId)) as { thread_id: string; message_id: string }[];
+    return rows
+      .map(row => this.getMessage(row.thread_id, row.message_id))
+      .filter(m => m !== null) as Message[];
+  }
+
+  findMessagesById(messageId: MessageId, groupId?: GroupId): Message[] {
+    const baseQuery = `
+      SELECT thread_id, message_id FROM messages
+      WHERE message_id = ?
+    `;
+    const stmt = groupId
+      ? this.db.prepare(`${baseQuery} AND group_id = ? ORDER BY id DESC`)
+      : this.db.prepare(`${baseQuery} ORDER BY id DESC`);
+    const rows = (groupId
+      ? stmt.all(messageId, groupId)
+      : stmt.all(messageId)) as { thread_id: string; message_id: string }[];
+
+    return rows
+      .map(row => this.getMessage(row.thread_id, row.message_id))
+      .filter(m => m !== null) as Message[];
+  }
+
+  listMessagesByAgent(agent: AgentAddress, groupId?: GroupId, limit?: number): Message[] {
+    const baseQuery = `
+      SELECT thread_id, message_id FROM messages
+      WHERE from_agent = ?
+    `;
+    const withGroup = groupId ? `${baseQuery} AND group_id = ?` : baseQuery;
+    const withLimit = typeof limit === "number" && limit > 0
+      ? `${withGroup} ORDER BY id DESC LIMIT ?`
+      : `${withGroup} ORDER BY id DESC`;
+
+    const stmt = this.db.prepare(withLimit);
+    const rows = (groupId
+      ? (typeof limit === "number" && limit > 0
+        ? stmt.all(agent, groupId, limit)
+        : stmt.all(agent, groupId))
+      : (typeof limit === "number" && limit > 0
+        ? stmt.all(agent, limit)
+        : stmt.all(agent))) as { thread_id: string; message_id: string }[];
+
+    return rows
+      .map(row => this.getMessage(row.thread_id, row.message_id))
+      .filter(m => m !== null) as Message[];
   }
 
   // ===== UTILITY OPERATIONS =====

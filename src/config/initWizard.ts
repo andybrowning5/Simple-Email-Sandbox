@@ -4,10 +4,10 @@ import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
-import { Group, GroupId, AgentAddress } from "../schema";
-import { DatabaseService } from "../db/service";
+import { Group, GroupId, AgentAddress } from "../schema.js";
+import { DatabaseService } from "../db/service.js";
 
-const DEFAULT_CONFIG_PATH = process.env.GROUP_CONFIG_PATH ?? "/data/config.json";
+const DEFAULT_CONFIG_PATH = process.env.GROUP_CONFIG_PATH ?? path.join(process.cwd(), "data", "config.json");
 
 function fileExists(file_path: string): boolean {
     try {

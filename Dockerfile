@@ -2,14 +2,20 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Install dependencies and build TypeScript output
-COPY package*.json ./
-RUN npm ci --ignore-scripts
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
+# Install dependencies (including better-sqlite3 native compilation)
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build TypeScript
 COPY tsconfig.json ./tsconfig.json
 COPY src ./src
-
-# Build TS → JS (assumes "build" script outputs to /app/dist)
 RUN npm run build
 
 
@@ -22,9 +28,16 @@ ENV NODE_ENV=production
 ENV GROUP_CONFIG_PATH=/data/config.json
 ENV DB_PATH=/data/email.db
 
-# Install only production dependencies
+# Install production dependencies with native modules
 COPY package*.json ./
-RUN npm ci --omit=dev --ignore-scripts
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && npm ci --omit=dev \
+    && apt-get remove -y python3 make g++ \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy compiled assets from the builder image
 COPY --from=builder /app/dist ./dist
@@ -37,8 +50,5 @@ VOLUME ["/data"]
 
 USER node
 
-# index.js should:
-#  - check for GROUP_CONFIG_PATH
-#  - run the init wizard if it doesn't exist
-#  - then start the MCP server
+# Start the server
 CMD ["node", "dist/index.js"]

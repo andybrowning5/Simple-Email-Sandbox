@@ -35,6 +35,12 @@ npm start
 npm test
 ```
 
+Vitest will run the unit/integration suites; the Supertest-based API specs require the ability to open a local port.
+
+```bash
+npm test
+```
+
 ---
 
 ## Docker
@@ -76,6 +82,8 @@ src/
 
 ## API Endpoints
 
+> Note: `groupId` can be supplied as a query parameter. If omitted, the server will use the only configured group or return an error if multiple groups exist.
+
 ### `POST /messages`
 Create a new message (and optionally a new thread)
 
@@ -91,7 +99,7 @@ Create a new message (and optionally a new thread)
 }
 ```
 
-**Response:**
+**Response (new thread):**
 ```json
 {
   "success": true,
@@ -103,6 +111,38 @@ Create a new message (and optionally a new thread)
   }
 }
 ```
+
+### `GET /inbox`
+Read the most recent messages for a group (full bodies).
+
+- Query params: `groupId` (optional), `numOfRecentEmails` or `limit` (default 10)
+- Response: array of messages with `from`, `to`, `subject`, `body`, `threadId`, `messageId`, `createdAt`
+
+### `GET /inbox/short`
+Read the most recent messages with previews.
+
+- Query params: `groupId` (optional), `numOfRecentEmails` or `limit` (default 10)
+- Response: array of messages with `from`, `subject`, `bodyPreview` (first ~500 chars), `threadId`, `messageId`, `createdAt`
+
+### `GET /messages/:messageId`
+Fetch a specific message by its ID.
+
+- Path param: `messageId`
+- Query params: `threadId` (recommended to disambiguate), `groupId` (optional)
+- If the message ID appears in multiple threads and no `threadId` is provided, a 400 is returned with matching thread IDs.
+
+### `GET /threads/:threadId`
+Fetch a full thread and all of its messages.
+
+- Path param: `threadId`
+- Response includes the thread metadata and ordered messages.
+
+### `GET /messages/by-name/:agentAddress`
+Fetch recent messages sent by a specific agent.
+
+- Path param: `agentAddress`
+- Query params: `groupId` (optional), `numOfRecentEmails` or `limit` (default 10)
+- Response: array of matching messages ordered by recency.
 
 ---
 
