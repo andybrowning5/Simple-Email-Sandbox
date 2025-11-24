@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  agent-email-mcp:
+    container_name: agent-email-mcp
+    image: agent-email-mcp:latest  # built locally
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./mcp-mail-data:/data
+    environment:
+      - GROUP_CONFIG_PATH=/data/config.json
+    tty: true        # enables interactive wizard
+    stdin_open: true # pass input to wizard (like docker -it)
