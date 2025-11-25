@@ -17,8 +17,8 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font);
-  font-size: 12px;
-  letter-spacing: 0.4px;
+  font-size: 13px;
+  letter-spacing: 0.35px;
 }
 
 h1,
@@ -51,16 +51,18 @@ button:hover {
 
 .app {
   display: grid;
-  grid-template-columns: 260px 1fr 1.2fr;
-  gap: 12px;
-  padding: 16px;
+  grid-template-columns: 320px 420px 540px;
+  gap: 16px;
+  padding: 18px;
+  align-items: start;
 }
 
 .panel {
   border: 3px solid var(--border);
-  padding: 12px;
+  padding: 14px;
   background: var(--card);
   box-shadow: 4px 4px 0 var(--border);
+  align-self: start;
 }
 
 .list {
@@ -82,15 +84,15 @@ button:hover {
 
 .message-card {
   border: 2px dashed var(--border);
-  padding: 8px;
+  padding: 10px;
   background: #fff;
 }
 
 .thread {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 60vh;
+  gap: 12px;
+  max-height: 70vh;
   overflow: auto;
   padding-right: 6px;
 }
@@ -104,6 +106,21 @@ button:hover {
 
 .muted {
   color: var(--muted);
+}
+
+.message-body {
+  margin-top: 6px;
+  line-height: 1.8;
+  word-break: break-word;
+  white-space: pre-wrap;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+}
+
+.message-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .form-grid {
@@ -121,4 +138,39 @@ button:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+textarea {
+  line-height: 1.4;
+  min-height: 120px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar .stack.grow {
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar-settings {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #ddd;
+}
+
+@media (max-width: 1200px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar .stack.grow {
+    flex: 0;
+  }
 }

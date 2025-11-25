@@ -25,6 +25,8 @@ export const api = {
   listGroups: () => getJson<Group[]>("/groups"),
   inboxByAgent: (groupId: string, agent: string) =>
     getJson<Message[]>(`/messages/by-name/${encodeURIComponent(agent)}?groupId=${encodeURIComponent(groupId)}`),
+  inboxGroup: (groupId: string, limit = 100) =>
+    getJson<Message[]>(`/inbox?groupId=${encodeURIComponent(groupId)}&limit=${limit}`),
   thread: (threadId: string) => getJson<ThreadWithMessages>(`/threads/${encodeURIComponent(threadId)}`),
   writeEmail: (payload: {
     groupId: string;

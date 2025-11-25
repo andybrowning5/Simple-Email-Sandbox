@@ -28,6 +28,7 @@ export default function App() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [allMail, setAllMail] = useState<Message[]>([]);
   const [thread, setThread] = useState<ThreadWithMessages | null>(null);
   const [newEmail, setNewEmail] = useState({ to: "", subject: "", body: "" });
   const [replyBody, setReplyBody] = useState("");
@@ -57,15 +58,22 @@ export default function App() {
     setSelectedAgent(firstAgent);
     setThread(null);
     setMessages([]);
+    setAllMail([]);
   }, [groups, selectedGroupId]);
 
   useEffect(() => {
-    if (!selectedGroupId || !selectedAgent) return;
+    if (!selectedGroupId) return;
     const load = async () => {
       try {
-        setLoading("Loading inbox...");
-        const data = await api.inboxByAgent(selectedGroupId, selectedAgent);
-        setMessages(data);
+        setLoading("Loading mail...");
+        if (selectedAgent) {
+          const data = await api.inboxByAgent(selectedGroupId, selectedAgent);
+          setMessages(data);
+        } else {
+          setMessages([]);
+        }
+        const groupMail = await api.inboxGroup(selectedGroupId);
+        setAllMail(groupMail);
         reset();
       } catch (err) {
         setError((err as Error).message);
@@ -109,6 +117,8 @@ export default function App() {
         const refreshed = await api.inboxByAgent(selectedGroupId, selectedAgent);
         setMessages(refreshed);
       }
+      const groupMail = await api.inboxGroup(selectedGroupId);
+      setAllMail(groupMail);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -134,6 +144,8 @@ export default function App() {
       setReplyBody("");
       const updated = await api.thread(thread.thread.threadId);
       setThread(updated);
+      const groupMail = await api.inboxGroup(selectedGroupId);
+      setAllMail(groupMail);
       reset();
     } catch (err) {
       setError((err as Error).message);
@@ -146,9 +158,9 @@ export default function App() {
 
   return (
     <div className="app">
-      <section className="panel">
+      <section className="panel sidebar">
         <h2 className="section-title">Groups</h2>
-        <div className="stack">
+        <div className="stack grow">
           <select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>
             {groups.map(g => (
               <option key={g.id} value={g.id}>
@@ -174,7 +186,7 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #ddd" }}>
+          <div className="sidebar-settings">
             <button
               onClick={() => setShowSettings(true)}
               style={{
@@ -220,13 +232,15 @@ export default function App() {
             <div className="thread">
               {thread.messages.map(msg => (
                 <div key={msg.messageId} className="message-card">
-                  <div className="inline">
-                    <span className="pill">{msg.messageId}</span>
-                    <strong>{msg.from}</strong>
-                    <span className="muted">→ {msg.to.join(", ")}</span>
+                  <div className="message-header">
+                    <div className="inline">
+                      <span className="pill">{msg.messageId}</span>
+                      <strong>{msg.from}</strong>
+                      <span className="muted">→ {msg.to.join(", ")}</span>
+                    </div>
+                    <div className="muted">{formatDate(msg.createdAt)}</div>
                   </div>
-                  <div className="muted">{formatDate(msg.createdAt)}</div>
-                  <div>{msg.body}</div>
+                  <div className="message-body">{msg.body}</div>
                 </div>
               ))}
             </div>
@@ -251,6 +265,7 @@ export default function App() {
         <div className="stack" style={{ marginTop: "12px" }}>
           <h3 className="section-title">New Email</h3>
           <div className="form-grid">
+            <input value={selectedAgent || ""} disabled placeholder="From" />
             <input
               placeholder="To (comma separated)"
               value={newEmail.to}
@@ -269,6 +284,24 @@ export default function App() {
             />
             <button onClick={handleSendNew}>Send Email</button>
           </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2 className="section-title">All Mail ({selectedGroupId || "no group"})</h2>
+        <div className="list">
+          {allMail.length === 0 && <div className="muted">No messages</div>}
+          {allMail.map(msg => (
+            <button key={`${msg.threadId}-${msg.messageId}-all`} onClick={() => handleSelectMessage(msg)}>
+              <div className="inline">
+                <span className="pill">{msg.messageId}</span>
+                <span>{msg.subject || "(no subject)"}</span>
+              </div>
+              <div className="muted">
+                From: {msg.from} → {msg.to.join(", ")} · {formatDate(msg.createdAt)}
+              </div>
+            </button>
+          ))}
         </div>
       </section>
     </div>

@@ -31,9 +31,10 @@ function strong(text: string): string {
 
 function banner(): string {
   const lines = [
+    "                                 ",
     "╔═══════════════════════════════╗",
     "║  Simple Email Sandbox (SES)   ║",
-    "║   private mail for your AIs   ║",
+    "║ private mail for your Agents  ║",
     "╚═══════════════════════════════╝"
   ];
   return lines.map(line => accent(line)).join("\n");
@@ -65,11 +66,11 @@ async function runWizard(dbService: DatabaseService) {
     console.log(`${strong("Welcome!")} Let's set up your initial group configuration.\n`);
     console.log(muted("Tip: keep names short and memorable. Agents share a single group namespace.\n"));
 
-    const groupIdSuffix = await ask(rl, "Enter a unique Group ID (e.g. @Team): @");
+    const groupIdSuffix = await ask(rl, "Enter a Group ID. Think of this like a private Domain. (e.g. @Team, @Workflow, @MyAgents): @");
     const groupId: GroupId = `@${groupIdSuffix}`;
     const agents: AgentAddress[] = [];
     while (true) {
-        const agent = await ask(rl, "Add an agent handle (blank to finish): ");
+        const agent = await ask(rl, "Add an agent handle (e.g. CEO, PM, FrontendDeveloper). Leave blank to finish: ");
         if (agent === "") break;
         agents.push(agent);
     }
