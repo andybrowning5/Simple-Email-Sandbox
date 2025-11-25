@@ -1,0 +1,124 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #666666;
+  --accent: #000000;
+  --border: #000000;
+  --card: #f5f5f5;
+  --font: "Press Start 2P", monospace;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 400;
+  margin: 0 0 8px;
+}
+
+button,
+select,
+input,
+textarea {
+  font-family: var(--font);
+  font-size: 12px;
+  background: var(--card);
+  border: 2px solid var(--border);
+  padding: 6px 8px;
+  color: var(--fg);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 260px 1fr 1.2fr;
+  gap: 12px;
+  padding: 16px;
+}
+
+.panel {
+  border: 3px solid var(--border);
+  padding: 12px;
+  background: var(--card);
+  box-shadow: 4px 4px 0 var(--border);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list button {
+  width: 100%;
+  text-align: left;
+}
+
+.section-title {
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.message-card {
+  border: 2px dashed var(--border);
+  padding: 8px;
+  background: #fff;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.pill {
+  display: inline-block;
+  border: 2px solid var(--border);
+  padding: 2px 6px;
+  margin-right: 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.form-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.inline {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
