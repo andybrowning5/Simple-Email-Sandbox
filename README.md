@@ -1,103 +1,64 @@
 # Simple Email Sandbox (SES)
 
-**Simple Email Sandbox (SES)** is the fastest way to give a team of LLM agents their own private email network. SES lets you spin up disposable inboxes instantly so agents can communicate, coordinate, and prototype workflows without any real email infrastructure.
+**Simple Email Sandbox (SES)** is the fastest way to give a team of LLM agents their own private email network. Create a full email ecosystem for your agent workflow in under 30 seconds. Each agent gets its own inbox, and the whole group is isolated, private, and designed for rapid iteration.
 
-Traditional options—like configuring Gmail accounts and wiring them into a Gmail MCP server—are slow, permission-heavy, and require tedious setup. SES is the opposite: it's built for blazing-fast prototyping.
-
-**Create a full email ecosystem for your agent workflow in under 30 seconds.** Each agent gets its own inbox, and the whole group is isolated, private, and designed for rapid iteration.
+Traditional options like configuring Gmail accounts are slow and permission-heavy. SES is built for blazing-fast prototyping—no real email infrastructure needed.
 
 ---
 
-## Quick Start
+## Quick Start: Zero to Working MCP Server
 
-### 1. Install dependencies
+Follow these steps to go from GitHub clone to a working MCP server in VS Code:
+
+### Step 1: Clone and Install
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd simple-email-sandbox
+
+# Install dependencies
 npm install
 ```
 
-### 2. Development (auto-restart)
+### Step 2: Start the API Server
 
+Choose either Docker or npm:
+
+**Option A: Using npm (recommended for development)**
 ```bash
 npm run dev
 ```
 
-### 3. Build and run
-
-```bash
-npm run build
-npm start
-```
-
-### 4. Run tests
-
-```bash
-npm test
-```
-
-Vitest will run the unit/integration suites; the Supertest-based API specs require the ability to open a local port.
-
-### 5. Frontend (optional)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The Vite dev server proxies `/api` to `http://localhost:3000` by default. Ensure the backend is running on port 3000.
-
----
-
-## Docker
-
-Build and run with Docker (node:20-slim base):
-
+**Option B: Using Docker**
 ```bash
 docker build -t agent-email-mcp .
 docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
 ```
 
-The `/data` volume persists your SQLite database and configuration between container restarts.
+The API server will start on `http://localhost:3000`. On first run, you'll go through an initialization wizard to set up your group and agent addresses.
 
----
+### Step 3: Start the MCP Server
 
-## MCP Server Setup
-
-The Simple Email Sandbox includes an MCP (Model Context Protocol) server that allows AI agents to interact with the email system.
-
-### 1. Start the API
-
-First, start the API server using either Docker or npm:
-
-**Using Docker:**
-```bash
-docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
-```
-
-**Using npm:**
-```bash
-npm run dev
-```
-
-### 2. Run the MCP Server
-
-In a separate terminal, start the MCP server:
+Open a **new terminal** and run:
 
 ```bash
 MCP_PORT=8080 MCP_HOST=0.0.0.0 API_BASE_URL=http://localhost:3000 npx tsx mcp/mcp.ts
 ```
 
-### 3. Configure in VS Code
+The MCP server will start on `http://0.0.0.0:8080/mcp`.
 
-To connect the MCP server to an AI agent in VS Code:
+### Step 4: Connect to VS Code
 
-1. Click the tool icon in the agent pane
-2. Click the MCP logo in the top right of the search pane
-3. Enter the MCP server URL: `http://0.0.0.0:8080/mcp`
-4. Name it: `Simple Email Server`
+Now connect the MCP server to your AI agent in VS Code:
 
-Your VS Code settings should be automatically updated to show:
+1. Open VS Code with an AI agent (like Claude)
+2. Click the **tool icon** in the agent pane
+3. Click the **MCP logo** in the top right of the search pane
+4. Enter the MCP server URL: `http://0.0.0.0:8080/mcp`
+5. Name it: `Simple Email Server`
+
+Your VS Code settings will be automatically updated:
 
 ```json
 {
@@ -108,105 +69,240 @@ Your VS Code settings should be automatically updated to show:
 }
 ```
 
-The AI agent can now use MCP tools to send emails, reply to messages, check inboxes, and manage email threads through the Simple Email Sandbox.
+### Step 5: Test It Out!
+
+Your AI agent can now use MCP tools to:
+- Send emails between agents
+- Reply to messages
+- Check inboxes
+- Manage email threads
+
+Try asking your agent: *"Send an email from alice to bob with subject 'Test' and body 'Hello from SES!'"*
+
+---
+
+## What You Get
+
+SES creates an isolated email network where:
+- **Agents have inboxes** — Each agent gets their own email address (e.g., `alice@team`, `bob@team`)
+- **Emails are threaded** — Conversations are organized like real email
+- **Everything is local** — No external services, no API keys, fully private
+- **Instant setup** — No configuration headaches
+
+---
+
+## Optional: Web UI
+
+SES includes a React frontend for visualizing and managing emails:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The UI runs on `http://localhost:5173` and provides a pixelated black/white interface to:
+- Browse agent inboxes
+- View email threads
+- Send and reply to emails on behalf of agents
+
+The dev server automatically proxies API calls to `http://localhost:3000`.
 
 ---
 
 ## Architecture
 
 - **SQLite Database** — Stores groups, threads, and messages with full relational integrity
-- **REST API** — Simple Express endpoints for creating messages and querying threads
-- **React Frontend** — Pixelated UI for browsing groups, agent inboxes, threads, and sending/replying on behalf of agents
+- **REST API** — Express endpoints for creating messages and querying threads
+- **MCP Server** — Model Context Protocol integration for AI agents
+- **React Frontend** — Visual UI for browsing and managing emails
 - **Initialization Wizard** — First-run setup creates your group and agent addresses
 - **Docker-ready** — Containerized with persistent storage at `/data`
+
+---
+
+## API Reference
+
+### Overview
+
+Most read endpoints accept an optional `groupId` query parameter. If omitted, the server uses the only configured group or returns an error when multiple groups exist.
+
+### Groups and Metadata
+
+**`GET /groups`**  
+List all groups with their agents and thread IDs.
+
+Response:
+```json
+{
+  "groups": [
+    {
+      "id": "@team",
+      "agents": ["alice", "bob", "carol"],
+      "threadIds": ["uuid1", "uuid2"]
+    }
+  ]
+}
+```
+
+### Sending Emails
+
+**`POST /emails/write`**  
+Send a new email and start a thread.
+
+Request:
+```json
+{
+  "groupId": "@team",
+  "from": "alice",
+  "to": ["bob", "carol"],
+  "subject": "Hello",
+  "body": "Body text"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "threadId": "uuid",
+    "messageId": "0",
+    "newThreadCreated": true
+  }
+}
+```
+
+**`POST /emails/reply`**  
+Reply to one person in a thread.
+
+Request:
+```json
+{
+  "threadId": "uuid",
+  "from": "bob",
+  "body": "Thanks!",
+  "replyToMessageId": "0"
+}
+```
+
+Recipients: the sender of the target message (excluding the replier). Subject auto-prefixes `Re:` if needed.
+
+**`POST /emails/reply-all`**  
+Reply to everyone on a message.
+
+Request:
+```json
+{
+  "threadId": "uuid",
+  "from": "bob",
+  "body": "All looped in",
+  "replyToMessageId": "0"
+}
+```
+
+Recipients: target message `from` + `to`, minus the replier. Subject auto-prefixes `Re:` if needed.
+
+### Reading Emails
+
+**`GET /inbox`**  
+Get the most recent full messages for a group.
+
+Query parameters:
+- `groupId` (optional)
+- `numOfRecentEmails` or `limit` (default: 10)
+
+**`GET /inbox/short`**  
+Same as `/inbox` but with 500-character body previews.
+
+Query parameters:
+- `groupId` (optional)
+- `numOfRecentEmails` or `limit` (default: 10)
+
+**`GET /messages/:messageId`**  
+Fetch a specific message.
+
+Query parameters:
+- `threadId` (recommended)
+- `groupId` (optional)
+
+If ambiguous across threads, returns 400 with matching thread IDs.
+
+**`GET /threads/:threadId`**  
+Fetch a full thread with all messages in order.
+
+**`GET /messages/by-name/:agentAddress`**  
+Get messages where the agent is a recipient.
+
+Query parameters:
+- `groupId` (optional)
+- `numOfRecentEmails` or `limit` (default: 10)
+
+Filters by `to` containing the agent.
+
+---
+
+## Development
+
+### Running Tests
+
+```bash
+npm test
+```
+
+Vitest will run the unit/integration suites. The Supertest-based API specs require the ability to open a local port.
+
+### Building for Production
+
+```bash
+npm run build
+npm start
+```
+
+### Docker Deployment
+
+Build and run with Docker (uses node:20-slim base):
+
+```bash
+docker build -t agent-email-mcp .
+docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
+```
+
+The `/data` volume persists your SQLite database and configuration between container restarts.
 
 ---
 
 ## Project Structure
 
 ```
-src/
-├── index.ts              # API server and routes
-├── schema.ts             # Group, Thread, and Message classes
-├── db/
-│   ├── init.ts          # Database initialization and schema
-│   └── service.ts       # Database service with CRUD operations
-└── config/
-    └── initWizard.ts    # Interactive setup wizard
+├── src/
+│   ├── index.ts              # API server and routes
+│   ├── schema.ts             # Group, Thread, and Message classes
+│   ├── db/
+│   │   ├── init.ts           # Database initialization and schema
+│   │   └── service.ts        # Database service with CRUD operations
+│   └── config/
+│       └── initWizard.ts     # Interactive setup wizard
+├── mcp/
+│   └── mcp.ts                # MCP server implementation
+├── frontend/                 # React UI
+└── data/                     # SQLite database (created on first run)
 ```
 
 ---
 
-## API Endpoints
-
-> `groupId` can be passed as a query param to most read endpoints. If omitted, the server uses the only configured group or returns an error when multiple groups exist.
-
-### Meta
-
-- **`GET /groups`** — List all groups with their agents and thread IDs.
-
-### Write
-
-- **`POST /emails/write`** — Send a new email and start a thread  
-  Request:
-  ```json
-  { "groupId": "@team", "from": "alice", "to": ["bob", "carol"], "subject": "Hello", "body": "Body text" }
-  ```  
-  Response:
-  ```json
-  { "success": true, "data": { "threadId": "uuid", "messageId": "0", "newThreadCreated": true } }
-  ```
-
-- **`POST /emails/reply`** — Reply to one person in a thread  
-  Request:
-  ```json
-  { "threadId": "uuid", "from": "bob", "body": "Thanks!", "replyToMessageId": "0" }
-  ```  
-  Recipients: the sender of the target message (excluding the replier). Subject auto-prefixes `Re:` if needed.
-
-- **`POST /emails/reply-all`** — Reply to everyone on a message  
-  Request:
-  ```json
-  { "threadId": "uuid", "from": "bob", "body": "All looped in", "replyToMessageId": "0" }
-  ```  
-  Recipients: target message `from` + `to`, minus the replier. Subject auto-prefixes `Re:` if needed.
-
-### Read
-
-- **`GET /inbox`** — Most recent full messages for a group  
-  Query: `groupId` (optional), `numOfRecentEmails`/`limit` (default 10)
-
-- **`GET /inbox/short`** — Same as `/inbox` with 500-char previews  
-  Query: `groupId` (optional), `numOfRecentEmails`/`limit` (default 10)
-
-- **`GET /messages/:messageId`** — Fetch a specific message  
-  Query: `threadId` (recommended), `groupId` (optional). If ambiguous across threads, returns 400 with matching thread IDs.
-
-- **`GET /threads/:threadId`** — Fetch a full thread plus ordered messages.
-
-- **`GET /messages/by-name/:agentAddress`** — Messages where the agent is a recipient  
-  Query: `groupId` (optional), `numOfRecentEmails`/`limit` (default 10). Filters by `to` containing the agent.
-
----
-
-## Frontend UI
-
-- Location: `frontend/`
-- Theme: black/white pixelated styling for quick inspection.
-- Features: select a group and agent, browse that agent’s inbox, open threads, send new emails, and reply/reply-all on an agent’s behalf.
-- Run locally:
-  ```bash
-  cd frontend
-  npm install
-  npm run dev
-  ```
-  The dev server proxies `/api` to `http://localhost:3000`; ensure the backend is running.
-
----
-
-## Next Steps
+## Roadmap
 
 - Add authentication/authorization for multi-tenant support
 - Improve delivery observability (logging/metrics) and retention policies
-- Add MCP server integration for Claude Desktop
 - Build agent inbox polling/notification system
+- Add email attachment support
+- Enhanced search and filtering capabilities
+
+---
+
+## Need Help?
+
+- **Issues**: Open an issue on GitHub
+- **Questions**: Check existing issues or start a discussion
+- **Contributing**: Pull requests welcome!
