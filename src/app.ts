@@ -113,6 +113,15 @@ function ensureGroup(dbService: DatabaseService, groupId: string): schema.Group 
   return group;
 }
 
+function validateAgents(agents: string[], group: schema.Group): { valid: boolean; invalidAgents: string[] } {
+  const validAgents = new Set(group.agents);
+  const invalidAgents = agents.filter(agent => !validAgents.has(agent));
+  return {
+    valid: invalidAgents.length === 0,
+    invalidAgents
+  };
+}
+
 export function createApp(dbService: DatabaseService): express.Express {
   const app = express();
 
@@ -131,6 +140,37 @@ export function createApp(dbService: DatabaseService): express.Express {
       });
     } catch (error) {
       console.error("Error listing groups:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.get("/agents", (req: express.Request, res: express.Response) => {
+    const groupId = resolveGroupId(req, res, dbService);
+    if (!groupId) return;
+
+    try {
+      const group = dbService.getGroup(groupId);
+      if (!group) {
+        res.status(404).json({
+          success: false,
+          message: `Group ${groupId} not found`
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          groupId: group.id,
+          agents: group.agents
+        }
+      });
+    } catch (error) {
+      console.error("Error listing agents:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",
@@ -160,7 +200,27 @@ export function createApp(dbService: DatabaseService): express.Express {
     }
 
     try {
-      ensureGroup(dbService, groupId);
+      const group = ensureGroup(dbService, groupId);
+
+      // Validate 'from' is a valid agent
+      if (!group.agents.includes(from)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid sender: '${from}' is not a valid agent in group ${groupId}. Valid agents: ${group.agents.join(", ")}`
+        });
+        return;
+      }
+
+      // Validate all recipients are valid agents
+      const recipientValidation = validateAgents(recipients, group);
+      if (!recipientValidation.valid) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid recipient(s): ${recipientValidation.invalidAgents.join(", ")} are not valid agents in group ${groupId}. Valid agents: ${group.agents.join(", ")}`
+        });
+        return;
+      }
+
       const message = new schema.Message(groupId, from, recipients, body, undefined, subject ?? DEFAULT_SUBJECT);
 
       if (!message.spawnedThread) {
@@ -194,12 +254,12 @@ export function createApp(dbService: DatabaseService): express.Express {
   });
 
   app.post("/emails/reply", (req: express.Request, res: express.Response) => {
-    const { groupId, from, threadId, body, replyToMessageId } = req.body;
+    const { groupId, threadId, replyToMessageId, from, body } = req.body;
 
     if (!from || !threadId || !body) {
       res.status(400).json({
         success: false,
-        message: "Missing required fields: from, threadId, body"
+        message: "Missing required fields: threadId, from, body"
       });
       return;
     }
@@ -222,7 +282,17 @@ export function createApp(dbService: DatabaseService): express.Express {
         return;
       }
 
-      ensureGroup(dbService, thread.groupId);
+      const group = ensureGroup(dbService, thread.groupId);
+
+      // Validate 'from' is a valid agent
+      if (!group.agents.includes(from)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid sender: '${from}' is not a valid agent in group ${thread.groupId}. Valid agents: ${group.agents.join(", ")}`
+        });
+        return;
+      }
+
       const targetMessage = replyToMessageId
         ? dbService.getMessage(threadId, replyToMessageId)
         : dbService.listMessagesByThread(threadId).at(-1) ?? null;
@@ -269,12 +339,12 @@ export function createApp(dbService: DatabaseService): express.Express {
   });
 
   app.post("/emails/reply-all", (req: express.Request, res: express.Response) => {
-    const { groupId, from, threadId, body, replyToMessageId } = req.body;
+    const { groupId, threadId, replyToMessageId, from, body } = req.body;
 
     if (!from || !threadId || !body) {
       res.status(400).json({
         success: false,
-        message: "Missing required fields: from, threadId, body"
+        message: "Missing required fields: threadId, from, body"
       });
       return;
     }
@@ -297,7 +367,17 @@ export function createApp(dbService: DatabaseService): express.Express {
         return;
       }
 
-      ensureGroup(dbService, thread.groupId);
+      const group = ensureGroup(dbService, thread.groupId);
+
+      // Validate 'from' is a valid agent
+      if (!group.agents.includes(from)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid sender: '${from}' is not a valid agent in group ${thread.groupId}. Valid agents: ${group.agents.join(", ")}`
+        });
+        return;
+      }
+
       const targetMessage = replyToMessageId
         ? dbService.getMessage(threadId, replyToMessageId)
         : dbService.listMessagesByThread(threadId).at(-1) ?? null;

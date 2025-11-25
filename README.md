@@ -62,6 +62,56 @@ The `/data` volume persists your SQLite database and configuration between conta
 
 ---
 
+## MCP Server Setup
+
+The Simple Email Sandbox includes an MCP (Model Context Protocol) server that allows AI agents to interact with the email system.
+
+### 1. Start the API
+
+First, start the API server using either Docker or npm:
+
+**Using Docker:**
+```bash
+docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
+```
+
+**Using npm:**
+```bash
+npm run dev
+```
+
+### 2. Run the MCP Server
+
+In a separate terminal, start the MCP server:
+
+```bash
+MCP_PORT=8080 MCP_HOST=0.0.0.0 API_BASE_URL=http://localhost:3000 npx tsx mcp/mcp.ts
+```
+
+### 3. Configure in VS Code
+
+To connect the MCP server to an AI agent in VS Code:
+
+1. Click the tool icon in the agent pane
+2. Click the MCP logo in the top right of the search pane
+3. Enter the MCP server URL: `http://0.0.0.0:8080/mcp`
+4. Name it: `Simple Email Server`
+
+Your VS Code settings should be automatically updated to show:
+
+```json
+{
+  "Simple Email Server": {
+    "url": "http://0.0.0.0:8080/mcp",
+    "type": "http"
+  }
+}
+```
+
+The AI agent can now use MCP tools to send emails, reply to messages, check inboxes, and manage email threads through the Simple Email Sandbox.
+
+---
+
 ## Architecture
 
 - **SQLite Database** — Stores groups, threads, and messages with full relational integrity
