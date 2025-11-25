@@ -237,9 +237,44 @@ export class DatabaseService {
       .filter(m => m !== null) as Message[];
   }
 
+  listMessagesForAgent(agent: AgentAddress, groupId?: GroupId, limit?: number): Message[] {
+    const hasLimit = typeof limit === "number" && limit > 0;
+    const query = groupId
+      ? `SELECT thread_id, message_id FROM messages WHERE group_id = ? ORDER BY id DESC${hasLimit ? " LIMIT ?" : ""}`
+      : `SELECT thread_id, message_id FROM messages ORDER BY id DESC${hasLimit ? " LIMIT ?" : ""}`;
+
+    const stmt = this.db.prepare(query);
+    const rows = (groupId
+      ? (hasLimit ? stmt.all(groupId, limit) : stmt.all(groupId))
+      : (hasLimit ? stmt.all(limit) : stmt.all())) as { thread_id: string; message_id: string }[];
+
+    const messages = rows
+      .map(row => this.getMessage(row.thread_id, row.message_id))
+      .filter(m => m !== null) as Message[];
+
+    return messages.filter(m => m.to.includes(agent));
+  }
+
   // ===== UTILITY OPERATIONS =====
 
   close(): void {
     this.db.close();
+  }
+
+  // ===== DELETE OPERATIONS =====
+
+  deleteAllMessages(): void {
+    const stmt = this.db.prepare(`DELETE FROM messages`);
+    stmt.run();
+  }
+
+  deleteAllThreads(): void {
+    const stmt = this.db.prepare(`DELETE FROM threads`);
+    stmt.run();
+  }
+
+  deleteAllGroups(): void {
+    const stmt = this.db.prepare(`DELETE FROM groups`);
+    stmt.run();
   }
 }

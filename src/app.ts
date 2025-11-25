@@ -1,9 +1,12 @@
 import express from "express";
 import * as schema from "./schema.js";
 import { DatabaseService } from "./db/service.js";
+import fs from "fs";
+import path from "path";
 
 const DEFAULT_LIMIT = 10;
 const BODY_PREVIEW_LENGTH = 500;
+const DEFAULT_SUBJECT = "No subject";
 
 function parseLimit(raw: unknown, fallback = DEFAULT_LIMIT): number {
   const parsed = Number(raw);
@@ -76,6 +79,40 @@ function serializeShortMessage(message: schema.Message) {
   };
 }
 
+function normalizeRecipients(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((val): val is string => typeof val === "string" && val.trim() !== "")
+      .map(v => v.trim());
+  }
+  if (typeof raw === "string" && raw.trim() !== "") {
+    return [raw.trim()];
+  }
+  return [];
+}
+
+function nextMessageId(thread: schema.Thread): string {
+  const next = Number.parseInt(thread.lastIndex, 10) + 1;
+  return Number.isNaN(next) ? "0" : String(next);
+}
+
+function replySubject(subject: string): string {
+  if (!subject || subject.trim() === "") {
+    return `Re: ${DEFAULT_SUBJECT}`;
+  }
+  const trimmed = subject.trim();
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+function ensureGroup(dbService: DatabaseService, groupId: string): schema.Group {
+  let group = dbService.getGroup(groupId);
+  if (!group) {
+    group = new schema.Group(groupId, []);
+    dbService.createGroup(group);
+  }
+  return group;
+}
+
 export function createApp(dbService: DatabaseService): express.Express {
   const app = express();
 
@@ -85,10 +122,26 @@ export function createApp(dbService: DatabaseService): express.Express {
     res.json({ message: "API is live" });
   });
 
-  app.post("/messages", (req: express.Request, res: express.Response) => {
-    const { groupId, from, to, body, threadId, subject } = req.body;
+  app.get("/groups", (_req: express.Request, res: express.Response) => {
+    try {
+      const groups = dbService.listGroups();
+      res.json({
+        success: true,
+        data: groups
+      });
+    } catch (error) {
+      console.error("Error listing groups:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
 
-    // Validate required fields
+  app.post("/emails/write", (req: express.Request, res: express.Response) => {
+    const { groupId, from, to, subject, body } = req.body;
+
     if (!groupId || !from || !to || !body) {
       res.status(400).json({
         success: false,
@@ -97,71 +150,196 @@ export function createApp(dbService: DatabaseService): express.Express {
       return;
     }
 
+    const recipients = normalizeRecipients(to);
+    if (recipients.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Recipient list cannot be empty"
+      });
+      return;
+    }
+
     try {
-      // Ensure group exists
-      let group = dbService.getGroup(groupId);
-      if (!group) {
-        group = new schema.Group(groupId, []);
-        dbService.createGroup(group);
-      }
+      ensureGroup(dbService, groupId);
+      const message = new schema.Message(groupId, from, recipients, body, undefined, subject ?? DEFAULT_SUBJECT);
 
-      // If threadId provided, validate it exists and get the next message ID
-      if (threadId) {
-        const existingThread = dbService.getThread(threadId);
-        if (!existingThread) {
-          res.status(404).json({
-            success: false,
-            message: `Thread ${threadId} not found`
-          });
-          return;
-        }
-
-        // Calculate next message ID
-        const nextMessageId = (parseInt(existingThread.lastIndex) + 1).toString();
-
-        // Create message with proper message ID
-        const message = new schema.Message(groupId, from, to, body, threadId, subject);
-        message.messageid = nextMessageId;
-
-        // Save to database
-        dbService.createMessage(message);
-
-        res.status(201).json({
-          success: true,
-          message: "Message added to existing thread",
-          data: {
-            messageId: message.messageid,
-            threadId: message.threadId,
-            newThreadCreated: false
-          }
+      if (!message.spawnedThread) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to create thread"
         });
-      } else {
-        // Create new thread
-        const message = new schema.Message(groupId, from, to, body, threadId, subject);
-
-        // Save thread and message to database
-        if (message.spawnedThread) {
-          dbService.createThread(message.spawnedThread);
-          dbService.createMessage(message);
-
-          res.status(201).json({
-            success: true,
-            message: "Message created with new thread",
-            data: {
-              messageId: message.messageid,
-              threadId: message.threadId,
-              newThreadCreated: true
-            }
-          });
-        } else {
-          res.status(500).json({
-            success: false,
-            message: "Failed to create thread"
-          });
-        }
+        return;
       }
+
+      dbService.createThread(message.spawnedThread);
+      dbService.createMessage(message);
+
+      res.status(201).json({
+        success: true,
+        message: "Email sent",
+        data: {
+          messageId: message.messageid,
+          threadId: message.threadId,
+          newThreadCreated: true
+        }
+      });
     } catch (error) {
-      console.error("Error creating message:", error);
+      console.error("Error sending email:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.post("/emails/reply", (req: express.Request, res: express.Response) => {
+    const { groupId, from, threadId, body, replyToMessageId } = req.body;
+
+    if (!from || !threadId || !body) {
+      res.status(400).json({
+        success: false,
+        message: "Missing required fields: from, threadId, body"
+      });
+      return;
+    }
+
+    try {
+      const thread = dbService.getThread(threadId);
+      if (!thread) {
+        res.status(404).json({
+          success: false,
+          message: `Thread ${threadId} not found`
+        });
+        return;
+      }
+
+      if (groupId && groupId !== thread.groupId) {
+        res.status(400).json({
+          success: false,
+          message: `Thread ${threadId} does not belong to group ${groupId}`
+        });
+        return;
+      }
+
+      ensureGroup(dbService, thread.groupId);
+      const targetMessage = replyToMessageId
+        ? dbService.getMessage(threadId, replyToMessageId)
+        : dbService.listMessagesByThread(threadId).at(-1) ?? null;
+
+      if (!targetMessage) {
+        res.status(404).json({
+          success: false,
+          message: "Message to reply to was not found"
+        });
+        return;
+      }
+
+      const recipients = [targetMessage.from].filter(addr => addr !== from);
+      if (recipients.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "No valid recipients found for reply"
+        });
+        return;
+      }
+
+      const subject = replySubject(thread.subject);
+      const message = new schema.Message(thread.groupId, from, recipients, body, threadId, subject);
+      message.messageid = nextMessageId(thread);
+      dbService.createMessage(message);
+
+      res.status(201).json({
+        success: true,
+        message: "Reply sent",
+        data: {
+          messageId: message.messageid,
+          threadId: message.threadId,
+          newThreadCreated: false
+        }
+      });
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.post("/emails/reply-all", (req: express.Request, res: express.Response) => {
+    const { groupId, from, threadId, body, replyToMessageId } = req.body;
+
+    if (!from || !threadId || !body) {
+      res.status(400).json({
+        success: false,
+        message: "Missing required fields: from, threadId, body"
+      });
+      return;
+    }
+
+    try {
+      const thread = dbService.getThread(threadId);
+      if (!thread) {
+        res.status(404).json({
+          success: false,
+          message: `Thread ${threadId} not found`
+        });
+        return;
+      }
+
+      if (groupId && groupId !== thread.groupId) {
+        res.status(400).json({
+          success: false,
+          message: `Thread ${threadId} does not belong to group ${groupId}`
+        });
+        return;
+      }
+
+      ensureGroup(dbService, thread.groupId);
+      const targetMessage = replyToMessageId
+        ? dbService.getMessage(threadId, replyToMessageId)
+        : dbService.listMessagesByThread(threadId).at(-1) ?? null;
+
+      if (!targetMessage) {
+        res.status(404).json({
+          success: false,
+          message: "Message to reply to was not found"
+        });
+        return;
+      }
+
+      const recipientSet = new Set<string>();
+      recipientSet.add(targetMessage.from);
+      targetMessage.to.forEach(addr => recipientSet.add(addr));
+      recipientSet.delete(from);
+      const recipients = Array.from(recipientSet);
+
+      if (recipients.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "No valid recipients found for reply-all"
+        });
+        return;
+      }
+
+      const subject = replySubject(thread.subject);
+      const message = new schema.Message(thread.groupId, from, recipients, body, threadId, subject);
+      message.messageid = nextMessageId(thread);
+      dbService.createMessage(message);
+
+      res.status(201).json({
+        success: true,
+        message: "Reply-all sent",
+        data: {
+          messageId: message.messageid,
+          threadId: message.threadId,
+          newThreadCreated: false
+        }
+      });
+    } catch (error) {
+      console.error("Error sending reply-all:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",
@@ -326,13 +504,68 @@ export function createApp(dbService: DatabaseService): express.Express {
         }
       }
 
-      const messages = dbService.listMessagesByAgent(agentAddress, groupId, limit).map(serializeMessage);
+      const messages = dbService.listMessagesForAgent(agentAddress, groupId, limit).map(serializeMessage);
       res.json({
         success: true,
         data: messages
       });
     } catch (error) {
       console.error("Error reading inbox by agent:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.post("/admin/reset", (_req: express.Request, res: express.Response) => {
+    try {
+      // Delete all data from database tables
+      dbService.deleteAllMessages();
+      dbService.deleteAllThreads();
+      dbService.deleteAllGroups();
+
+      // Close database connection
+      dbService.close();
+
+      // Delete the physical database and config files
+      const dbPath = process.env.DB_PATH || path.join(process.cwd(), "data", "email.db");
+      const configPath = process.env.GROUP_CONFIG_PATH || path.join(process.cwd(), "data", "config.json");
+
+      if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+      }
+
+      if (fs.existsSync(configPath)) {
+        fs.unlinkSync(configPath);
+      }
+
+      // Also delete SQLite temp files if they exist
+      const dbShmPath = `${dbPath}-shm`;
+      const dbWalPath = `${dbPath}-wal`;
+      if (fs.existsSync(dbShmPath)) {
+        fs.unlinkSync(dbShmPath);
+      }
+      if (fs.existsSync(dbWalPath)) {
+        fs.unlinkSync(dbWalPath);
+      }
+
+      res.json({
+        success: true,
+        message: "Database reset successfully",
+        data: {
+          message: "Database and config files deleted successfully. Please restart the server to run the wizard again."
+        }
+      });
+
+      // Exit the process after a short delay to ensure response is sent
+      setTimeout(() => {
+        console.log("Database reset complete. Exiting to allow restart...");
+        process.exit(0);
+      }, 500);
+    } catch (error) {
+      console.error("Error resetting database:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",

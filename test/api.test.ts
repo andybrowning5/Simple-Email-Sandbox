@@ -29,8 +29,16 @@ afterEach(() => {
   }
 });
 
-function sendMessage(body: Record<string, unknown>) {
-  return request(app).post("/messages").send(body);
+function writeEmail(body: Record<string, unknown>) {
+  return request(app).post("/emails/write").send(body);
+}
+
+function replyEmail(body: Record<string, unknown>) {
+  return request(app).post("/emails/reply").send(body);
+}
+
+function replyAll(body: Record<string, unknown>) {
+  return request(app).post("/emails/reply-all").send(body);
 }
 
 describeIfCanListen("Inbox endpoints", () => {
@@ -40,8 +48,8 @@ describeIfCanListen("Inbox endpoints", () => {
       to: ["bob"]
     };
 
-    await sendMessage({ ...baseBody, from: "alice", body: "Hi Bob", subject: "First" }).expect(201);
-    await sendMessage({ ...baseBody, from: "carol", body: "Hi again", subject: "Second" }).expect(201);
+    await writeEmail({ ...baseBody, from: "alice", body: "Hi Bob", subject: "First" }).expect(201);
+    await writeEmail({ ...baseBody, from: "carol", body: "Hi again", subject: "Second" }).expect(201);
 
     const res = await request(app)
       .get("/inbox")
@@ -56,7 +64,7 @@ describeIfCanListen("Inbox endpoints", () => {
 
   it("returns a short inbox with a 500 character preview", async () => {
     const longBody = "A".repeat(600);
-    await sendMessage({
+    await writeEmail({
       groupId: "@group",
       from: "alice",
       to: ["bob"],
@@ -78,7 +86,7 @@ describeIfCanListen("Inbox endpoints", () => {
 
 describeIfCanListen("Thread and message retrieval", () => {
   it("fetches a full thread with its messages", async () => {
-    const first = await sendMessage({
+    const first = await writeEmail({
       groupId: "@group",
       from: "alice",
       to: ["bob"],
@@ -88,10 +96,9 @@ describeIfCanListen("Thread and message retrieval", () => {
 
     const threadId = first.body.data.threadId as string;
 
-    await sendMessage({
+    await replyEmail({
       groupId: "@group",
       from: "bob",
-      to: ["alice"],
       body: "Reply",
       threadId
     }).expect(201);
@@ -106,7 +113,7 @@ describeIfCanListen("Thread and message retrieval", () => {
   });
 
   it("fetches a message by id and thread", async () => {
-    const first = await sendMessage({
+    const first = await writeEmail({
       groupId: "@group",
       from: "alice",
       to: ["bob"],
@@ -126,14 +133,14 @@ describeIfCanListen("Thread and message retrieval", () => {
   });
 
   it("returns an error when a message id is ambiguous across threads", async () => {
-    await sendMessage({
+    await writeEmail({
       groupId: "@group",
       from: "alice",
       to: ["bob"],
       body: "First thread"
     }).expect(201);
 
-    await sendMessage({
+    await writeEmail({
       groupId: "@group",
       from: "carol",
       to: ["bob"],
@@ -146,20 +153,111 @@ describeIfCanListen("Thread and message retrieval", () => {
   });
 });
 
+describeIfCanListen("Reply logic", () => {
+  it("sends a reply to the original sender with Re: subject", async () => {
+    const first = await writeEmail({
+      groupId: "@group",
+      from: "alice",
+      to: ["bob"],
+      body: "Hello Bob",
+      subject: "Status update"
+    }).expect(201);
+
+    const threadId = first.body.data.threadId as string;
+
+    const replyRes = await replyEmail({
+      groupId: "@group",
+      from: "bob",
+      threadId,
+      body: "Thanks"
+    }).expect(201);
+
+    const messageRes = await request(app)
+      .get(`/messages/${replyRes.body.data.messageId}`)
+      .query({ threadId })
+      .expect(200);
+
+    expect(messageRes.body.data.subject).toBe("Re: Status update");
+    expect(messageRes.body.data.to).toEqual(["alice"]);
+  });
+
+  it("sends reply-all to everyone except the replier", async () => {
+    const first = await writeEmail({
+      groupId: "@group",
+      from: "alice",
+      to: ["bob", "carol"],
+      body: "Kickoff",
+      subject: "Meeting"
+    }).expect(201);
+    const threadId = first.body.data.threadId as string;
+
+    await replyAll({
+      from: "bob",
+      threadId,
+      body: "Looping everyone back"
+    }).expect(201);
+
+    const res = await request(app).get(`/threads/${threadId}`).expect(200);
+    const lastMsg = res.body.data.messages.at(-1);
+    expect(lastMsg.to.sort()).toEqual(["alice", "carol"].sort());
+  });
+
+  it("replies to a specific older message when replyToMessageId is provided", async () => {
+    const first = await writeEmail({
+      groupId: "@group",
+      from: "alice",
+      to: ["bob"],
+      body: "Msg1",
+      subject: "Sequence"
+    }).expect(201);
+    const threadId = first.body.data.threadId as string;
+
+    await replyEmail({
+      from: "bob",
+      threadId,
+      body: "Msg2"
+    }).expect(201);
+
+    const third = await replyEmail({
+      from: "carol",
+      threadId,
+      body: "Msg3"
+    }).expect(201);
+
+    const thirdId = third.body.data.messageId as string;
+
+    const fourth = await replyEmail({
+      from: "dave",
+      threadId,
+      body: "Replying to bob",
+      replyToMessageId: "1"
+    }).expect(201);
+
+    const res = await request(app)
+      .get(`/messages/${fourth.body.data.messageId}`)
+      .query({ threadId })
+      .expect(200);
+
+    // Should target bob (message id "1") even though carol was last
+    expect(res.body.data.to).toEqual(["bob"]);
+    expect(res.body.data.messageId).toBe(String(Number(thirdId) + 1));
+  });
+});
+
 describeIfCanListen("Filtering by sender", () => {
-  it("fetches messages by sender name within a group", async () => {
-    await sendMessage({
+  it("fetches messages where the agent is a recipient", async () => {
+    await writeEmail({
       groupId: "@group",
       from: "alice",
       to: ["bob"],
       body: "Hello from Alice"
     }).expect(201);
 
-    await sendMessage({
+    await writeEmail({
       groupId: "@group",
       from: "carol",
-      to: ["bob"],
-      body: "Hello from Carol"
+      to: ["alice"],
+      body: "Inbound to Alice"
     }).expect(201);
 
     const res = await request(app)
@@ -169,7 +267,6 @@ describeIfCanListen("Filtering by sender", () => {
 
     expect(res.body.success).toBe(true);
     expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0]?.from).toBe("alice");
-    expect(res.body.data[0]?.body).toBe("Hello from Alice");
+    expect(res.body.data[0]?.body).toBe("Inbound to Alice");
   });
 });

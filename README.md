@@ -37,9 +37,15 @@ npm test
 
 Vitest will run the unit/integration suites; the Supertest-based API specs require the ability to open a local port.
 
+### 5. Frontend (optional)
+
 ```bash
-npm test
+cd frontend
+npm install
+npm run dev
 ```
+
+The Vite dev server proxies `/api` to `http://localhost:3000` by default. Ensure the backend is running on port 3000.
 
 ---
 
@@ -49,7 +55,7 @@ Build and run with Docker (node:20-slim base):
 
 ```bash
 docker build -t agent-email-mcp .
-docker run --rm -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
+docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
 ```
 
 The `/data` volume persists your SQLite database and configuration between container restarts.
@@ -60,6 +66,7 @@ The `/data` volume persists your SQLite database and configuration between conta
 
 - **SQLite Database** — Stores groups, threads, and messages with full relational integrity
 - **REST API** — Simple Express endpoints for creating messages and querying threads
+- **React Frontend** — Pixelated UI for browsing groups, agent inboxes, threads, and sending/replying on behalf of agents
 - **Initialization Wizard** — First-run setup creates your group and agent addresses
 - **Docker-ready** — Containerized with persistent storage at `/data`
 
@@ -82,73 +89,74 @@ src/
 
 ## API Endpoints
 
-> Note: `groupId` can be supplied as a query parameter. If omitted, the server will use the only configured group or return an error if multiple groups exist.
+> `groupId` can be passed as a query param to most read endpoints. If omitted, the server uses the only configured group or returns an error when multiple groups exist.
 
-### `POST /messages`
-Create a new message (and optionally a new thread)
+### Meta
 
-**Request body:**
-```json
-{
-  "groupId": "@MyAgentTeam",
-  "from": "agent1",
-  "to": ["agent2", "agent3"],
-  "body": "Message content",
-  "subject": "Optional subject",
-  "threadId": "optional-thread-id"
-}
-```
+- **`GET /groups`** — List all groups with their agents and thread IDs.
 
-**Response (new thread):**
-```json
-{
-  "success": true,
-  "message": "Message created with new thread",
-  "data": {
-    "messageId": "0",
-    "threadId": "uuid-here",
-    "newThreadCreated": true
-  }
-}
-```
+### Write
 
-### `GET /inbox`
-Read the most recent messages for a group (full bodies).
+- **`POST /emails/write`** — Send a new email and start a thread  
+  Request:
+  ```json
+  { "groupId": "@team", "from": "alice", "to": ["bob", "carol"], "subject": "Hello", "body": "Body text" }
+  ```  
+  Response:
+  ```json
+  { "success": true, "data": { "threadId": "uuid", "messageId": "0", "newThreadCreated": true } }
+  ```
 
-- Query params: `groupId` (optional), `numOfRecentEmails` or `limit` (default 10)
-- Response: array of messages with `from`, `to`, `subject`, `body`, `threadId`, `messageId`, `createdAt`
+- **`POST /emails/reply`** — Reply to one person in a thread  
+  Request:
+  ```json
+  { "threadId": "uuid", "from": "bob", "body": "Thanks!", "replyToMessageId": "0" }
+  ```  
+  Recipients: the sender of the target message (excluding the replier). Subject auto-prefixes `Re:` if needed.
 
-### `GET /inbox/short`
-Read the most recent messages with previews.
+- **`POST /emails/reply-all`** — Reply to everyone on a message  
+  Request:
+  ```json
+  { "threadId": "uuid", "from": "bob", "body": "All looped in", "replyToMessageId": "0" }
+  ```  
+  Recipients: target message `from` + `to`, minus the replier. Subject auto-prefixes `Re:` if needed.
 
-- Query params: `groupId` (optional), `numOfRecentEmails` or `limit` (default 10)
-- Response: array of messages with `from`, `subject`, `bodyPreview` (first ~500 chars), `threadId`, `messageId`, `createdAt`
+### Read
 
-### `GET /messages/:messageId`
-Fetch a specific message by its ID.
+- **`GET /inbox`** — Most recent full messages for a group  
+  Query: `groupId` (optional), `numOfRecentEmails`/`limit` (default 10)
 
-- Path param: `messageId`
-- Query params: `threadId` (recommended to disambiguate), `groupId` (optional)
-- If the message ID appears in multiple threads and no `threadId` is provided, a 400 is returned with matching thread IDs.
+- **`GET /inbox/short`** — Same as `/inbox` with 500-char previews  
+  Query: `groupId` (optional), `numOfRecentEmails`/`limit` (default 10)
 
-### `GET /threads/:threadId`
-Fetch a full thread and all of its messages.
+- **`GET /messages/:messageId`** — Fetch a specific message  
+  Query: `threadId` (recommended), `groupId` (optional). If ambiguous across threads, returns 400 with matching thread IDs.
 
-- Path param: `threadId`
-- Response includes the thread metadata and ordered messages.
+- **`GET /threads/:threadId`** — Fetch a full thread plus ordered messages.
 
-### `GET /messages/by-name/:agentAddress`
-Fetch recent messages sent by a specific agent.
+- **`GET /messages/by-name/:agentAddress`** — Messages where the agent is a recipient  
+  Query: `groupId` (optional), `numOfRecentEmails`/`limit` (default 10). Filters by `to` containing the agent.
 
-- Path param: `agentAddress`
-- Query params: `groupId` (optional), `numOfRecentEmails` or `limit` (default 10)
-- Response: array of matching messages ordered by recency.
+---
+
+## Frontend UI
+
+- Location: `frontend/`
+- Theme: black/white pixelated styling for quick inspection.
+- Features: select a group and agent, browse that agent’s inbox, open threads, send new emails, and reply/reply-all on an agent’s behalf.
+- Run locally:
+  ```bash
+  cd frontend
+  npm install
+  npm run dev
+  ```
+  The dev server proxies `/api` to `http://localhost:3000`; ensure the backend is running.
 
 ---
 
 ## Next Steps
 
 - Add authentication/authorization for multi-tenant support
-- Implement message retrieval endpoints (GET /messages, GET /threads)
+- Improve delivery observability (logging/metrics) and retention policies
 - Add MCP server integration for Claude Desktop
 - Build agent inbox polling/notification system
