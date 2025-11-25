@@ -65,6 +65,23 @@ button:hover {
   align-self: start;
 }
 
+.panel.sidebar {
+  background: #ffe6e6; /* light red */
+}
+
+.panel.thread {
+  background: #fffbe6; /* light yellow */
+}
+
+.panel.inbox {
+  background: #e6ffe6; /* light green */
+}
+
+.panel.allmail {
+  background: #e6f0ff; /* light blue */
+}
+
+
 .list {
   display: flex;
   flex-direction: column;
@@ -76,10 +93,34 @@ button:hover {
   text-align: left;
 }
 
+.inbox .list button:hover {
+  background: #f4fff4; /* lighter green */
+  color: var(--fg);
+}
+
+.allmail .list button:hover {
+  background: #f0f6ff; /* lighter blue */
+  color: var(--fg);
+}
+
 .section-title {
   border-bottom: 2px solid var(--border);
   padding-bottom: 6px;
   margin-bottom: 8px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chip {
+  border: 2px solid var(--border);
+  background: var(--card);
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .message-card {

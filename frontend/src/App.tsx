@@ -34,6 +34,11 @@ export default function App() {
   const [replyBody, setReplyBody] = useState("");
   const [replyMode, setReplyMode] = useState<"reply" | "reply-all">("reply");
   const [showSettings, setShowSettings] = useState(false);
+  const [collapsed, setCollapsed] = useState({
+    inbox: false,
+    thread: false,
+    allMail: false
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -157,153 +162,180 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <section className="panel sidebar">
-        <h2 className="section-title">Groups</h2>
-        <div className="stack grow">
-          <select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>
-            {groups.map(g => (
-              <option key={g.id} value={g.id}>
-                {g.id}
-              </option>
-            ))}
-          </select>
-          <div>
-            <h3 className="section-title">Agents</h3>
+    <>
+      <div className="app">
+        <section className="panel sidebar">
+          <h2 className="section-title">Groups</h2>
+          <div className="stack grow">
+            <select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>
+              {groups.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.id}
+                </option>
+              ))}
+            </select>
+            <div>
+              <h3 className="section-title">Agents</h3>
+              <div className="list">
+                {agents.length === 0 && <div className="muted">No agents</div>}
+                {agents.map(agent => (
+                  <button
+                    key={agent}
+                    onClick={() => {
+                      setSelectedAgent(agent);
+                      setThread(null);
+                    }}
+                    style={{ background: selectedAgent === agent ? "#000" : undefined, color: selectedAgent === agent ? "#fff" : undefined }}
+                  >
+                    {agent}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="sidebar-settings">
+              <button
+                onClick={() => setShowSettings(true)}
+                style={{
+                  background: "#4a5568",
+                  color: "white",
+                  width: "100%",
+                  padding: "10px",
+                  fontWeight: "600"
+                }}
+              >
+                ⚙️ Settings
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel thread">
+        <div className="section-header">
+          <h2 className="section-title">Thread</h2>
+          <button className="chip" onClick={() => setCollapsed(c => ({ ...c, thread: !c.thread }))}>
+            {collapsed.thread ? "▸" : "▾"}
+          </button>
+        </div>
+        {!collapsed.thread && (
+          <>
+            {!thread && <div className="muted">Select a message to view its thread.</div>}
+            {thread && (
+              <div className="stack">
+                <div className="muted">Subject: {thread.thread.subject || "(no subject)"}</div>
+                <div className="thread">
+                  {thread.messages.map(msg => (
+                    <div key={msg.messageId} className="message-card">
+                      <div className="message-header">
+                        <div className="inline">
+                          <span className="pill">{msg.messageId}</span>
+                          <strong>{msg.from}</strong>
+                          <span className="muted">→ {msg.to.join(", ")}</span>
+                        </div>
+                        <div className="muted">{formatDate(msg.createdAt)}</div>
+                      </div>
+                      <div className="message-body">{msg.body}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="stack">
+                  <h3 className="section-title">Reply</h3>
+                  <textarea
+                    rows={4}
+                    placeholder="Write your reply..."
+                    value={replyBody}
+                    onChange={e => setReplyBody(e.target.value)}
+                  />
+                  <div className="inline">
+                    <select value={replyMode} onChange={e => setReplyMode(e.target.value as "reply" | "reply-all")}>
+                      <option value="reply">Reply</option>
+                      <option value="reply-all">Reply-all</option>
+                    </select>
+                    <button onClick={() => handleReply(replyMode)}>Send</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="stack" style={{ marginTop: "12px" }}>
+              <h3 className="section-title">New Email</h3>
+              <div className="form-grid">
+                <input value={selectedAgent || ""} disabled placeholder="From" />
+                <input
+                  placeholder="To (comma separated)"
+                  value={newEmail.to}
+                  onChange={e => setNewEmail(prev => ({ ...prev, to: e.target.value }))}
+                />
+                <input
+                  placeholder="Subject"
+                  value={newEmail.subject}
+                  onChange={e => setNewEmail(prev => ({ ...prev, subject: e.target.value }))}
+                />
+                <textarea
+                  rows={3}
+                  placeholder="Body"
+                  value={newEmail.body}
+                  onChange={e => setNewEmail(prev => ({ ...prev, body: e.target.value }))}
+                />
+                <button onClick={handleSendNew}>Send Email</button>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
+        <section className="panel inbox">
+        <div className="section-header">
+          <h2 className="section-title">Inbox ({selectedAgent || "select an agent"})</h2>
+          <button className="chip" onClick={() => setCollapsed(c => ({ ...c, inbox: !c.inbox }))}>
+            {collapsed.inbox ? "▸" : "▾"}
+          </button>
+        </div>
+        {!collapsed.inbox && (
+          <>
+            {status.kind === "error" && <div className="muted">Error: {status.message}</div>}
+            {status.kind === "loading" && <div className="muted">{status.label || "Loading..."}</div>}
             <div className="list">
-              {agents.length === 0 && <div className="muted">No agents</div>}
-              {agents.map(agent => (
-                <button
-                  key={agent}
-                  onClick={() => {
-                    setSelectedAgent(agent);
-                    setThread(null);
-                  }}
-                  style={{ background: selectedAgent === agent ? "#000" : undefined, color: selectedAgent === agent ? "#fff" : undefined }}
-                >
-                  {agent}
+              {messages.length === 0 && <div className="muted">No messages</div>}
+              {messages.map(msg => (
+                <button key={`${msg.threadId}-${msg.messageId}`} onClick={() => handleSelectMessage(msg)}>
+                  <div className="inline">
+                    <span className="pill">{msg.messageId}</span>
+                    <span>{msg.subject || "(no subject)"}</span>
+                  </div>
+                  <div className="muted">
+                    From: {msg.from} · {formatDate(msg.createdAt)}
+                  </div>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="sidebar-settings">
-            <button
-              onClick={() => setShowSettings(true)}
-              style={{
-                background: "#4a5568",
-                color: "white",
-                width: "100%",
-                padding: "10px",
-                fontWeight: "600"
-              }}
-            >
-              ⚙️ Settings
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </section>
 
-      <section className="panel">
-        <h2 className="section-title">Inbox ({selectedAgent || "select an agent"})</h2>
-        {status.kind === "error" && <div className="muted">Error: {status.message}</div>}
-        {status.kind === "loading" && <div className="muted">{status.label || "Loading..."}</div>}
-        <div className="list">
-          {messages.length === 0 && <div className="muted">No messages</div>}
-          {messages.map(msg => (
-            <button key={`${msg.threadId}-${msg.messageId}`} onClick={() => handleSelectMessage(msg)}>
-              <div className="inline">
-                <span className="pill">{msg.messageId}</span>
-                <span>{msg.subject || "(no subject)"}</span>
-              </div>
-              <div className="muted">
-                From: {msg.from} · {formatDate(msg.createdAt)}
-              </div>
-            </button>
-          ))}
+        <section className="panel allmail">
+        <div className="section-header">
+          <h2 className="section-title">All Mail ({selectedGroupId || "no group"})</h2>
+          <button className="chip" onClick={() => setCollapsed(c => ({ ...c, allMail: !c.allMail }))}>
+            {collapsed.allMail ? "▸" : "▾"}
+          </button>
         </div>
-      </section>
-
-      <section className="panel">
-        <h2 className="section-title">Thread</h2>
-        {!thread && <div className="muted">Select a message to view its thread.</div>}
-        {thread && (
-          <div className="stack">
-            <div className="muted">Subject: {thread.thread.subject || "(no subject)"}</div>
-            <div className="thread">
-              {thread.messages.map(msg => (
-                <div key={msg.messageId} className="message-card">
-                  <div className="message-header">
-                    <div className="inline">
-                      <span className="pill">{msg.messageId}</span>
-                      <strong>{msg.from}</strong>
-                      <span className="muted">→ {msg.to.join(", ")}</span>
-                    </div>
-                    <div className="muted">{formatDate(msg.createdAt)}</div>
-                  </div>
-                  <div className="message-body">{msg.body}</div>
+        {!collapsed.allMail && (
+          <div className="list">
+            {allMail.length === 0 && <div className="muted">No messages</div>}
+            {allMail.map(msg => (
+              <button key={`${msg.threadId}-${msg.messageId}-all`} onClick={() => handleSelectMessage(msg)}>
+                <div className="inline">
+                  <span className="pill">{msg.messageId}</span>
+                  <span>{msg.subject || "(no subject)"}</span>
                 </div>
-              ))}
-            </div>
-            <div className="stack">
-              <h3 className="section-title">Reply</h3>
-              <textarea
-                rows={4}
-                placeholder="Write your reply..."
-                value={replyBody}
-                onChange={e => setReplyBody(e.target.value)}
-              />
-              <div className="inline">
-                <select value={replyMode} onChange={e => setReplyMode(e.target.value as "reply" | "reply-all")}>
-                  <option value="reply">Reply</option>
-                  <option value="reply-all">Reply-all</option>
-                </select>
-                <button onClick={() => handleReply(replyMode)}>Send</button>
-              </div>
-            </div>
+                <div className="muted">
+                  From: {msg.from} → {msg.to.join(", ")} · {formatDate(msg.createdAt)}
+                </div>
+              </button>
+            ))}
           </div>
         )}
-        <div className="stack" style={{ marginTop: "12px" }}>
-          <h3 className="section-title">New Email</h3>
-          <div className="form-grid">
-            <input value={selectedAgent || ""} disabled placeholder="From" />
-            <input
-              placeholder="To (comma separated)"
-              value={newEmail.to}
-              onChange={e => setNewEmail(prev => ({ ...prev, to: e.target.value }))}
-            />
-            <input
-              placeholder="Subject"
-              value={newEmail.subject}
-              onChange={e => setNewEmail(prev => ({ ...prev, subject: e.target.value }))}
-            />
-            <textarea
-              rows={3}
-              placeholder="Body"
-              value={newEmail.body}
-              onChange={e => setNewEmail(prev => ({ ...prev, body: e.target.value }))}
-            />
-            <button onClick={handleSendNew}>Send Email</button>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2 className="section-title">All Mail ({selectedGroupId || "no group"})</h2>
-        <div className="list">
-          {allMail.length === 0 && <div className="muted">No messages</div>}
-          {allMail.map(msg => (
-            <button key={`${msg.threadId}-${msg.messageId}-all`} onClick={() => handleSelectMessage(msg)}>
-              <div className="inline">
-                <span className="pill">{msg.messageId}</span>
-                <span>{msg.subject || "(no subject)"}</span>
-              </div>
-              <div className="muted">
-                From: {msg.from} → {msg.to.join(", ")} · {formatDate(msg.createdAt)}
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </>
   );
 }
