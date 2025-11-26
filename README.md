@@ -29,8 +29,8 @@ Choose either Docker or npm:
 **Option A: Using npm (recommended for development)**
 
 ```bash
-npm run dev
-
+npm run build
+npm run start
 ```
 
 **Option B: Using Docker**
@@ -40,6 +40,7 @@ docker build -t agent-email-mcp .
 docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
 
 ```
+Note: to restart the email server from scratch, delete the /data directory or use the frontend UI and select Settings>Reset Database.
 
 The API server will start on  `http://localhost:3000`. On first run, you'll go through an initialization wizard to set up your group and agent addresses.
 
