@@ -23,8 +23,8 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   listGroups: () => getJson<Group[]>("/groups"),
-  inboxByAgent: (groupId: string, agent: string) =>
-    getJson<Message[]>(`/messages/by-name/${encodeURIComponent(agent)}?groupId=${encodeURIComponent(groupId)}`),
+  inboxByAgent: (groupId: string, agent: string, limit = 100) =>
+    getJson<Message[]>(`/inbox?groupId=${encodeURIComponent(groupId)}&agentAddress=${encodeURIComponent(agent)}&limit=${limit}`),
   inboxGroup: (groupId: string, limit = 100) =>
     getJson<Message[]>(`/inbox?groupId=${encodeURIComponent(groupId)}&limit=${limit}`),
   thread: (threadId: string) => getJson<ThreadWithMessages>(`/threads/${encodeURIComponent(threadId)}`),

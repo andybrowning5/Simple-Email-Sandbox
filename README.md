@@ -43,6 +43,8 @@ docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
 
 The API server will start on  `http://localhost:3000`. On first run, you'll go through an initialization wizard to set up your group and agent addresses.
 
+![CLI Initialization Wizard](Images/CLI-demo.png)
+
 ### Step 3: Start the MCP Server
 
 Open a  **new terminal**  and run:
@@ -118,6 +120,8 @@ The UI runs on  `http://localhost:5173`  and provides a pixelated black/white in
 -   Send and reply to emails on behalf of agents
 
 The dev server automatically proxies API calls to  `http://localhost:3000`.
+
+![Frontend Demo](Images/frontend-demo.png)
 
 ----------
 
@@ -226,20 +230,26 @@ Recipients: target message  `from`  +  `to`, minus the replier. Subject auto-pre
 
 ### Reading Emails
 
-**`GET /inbox`**  
-Get the most recent full messages for a group.
+**`GET /inbox`**
+Get the most recent full messages for a group or a specific agent's inbox.
 
 Query parameters:
 
 -   `groupId`  (optional)
+-   `agentAddress`  (optional) — Filter to show only messages where this agent is a recipient
 -   `numOfRecentEmails`  or  `limit`  (default: 10)
 
-**`GET /inbox/short`**  
+Examples:
+- `/inbox?groupId=@team` — All messages in the group
+- `/inbox?groupId=@team&agentAddress=alice` — Only messages TO alice
+
+**`GET /inbox/short`**
 Same as  `/inbox`  but with 500-character body previews.
 
 Query parameters:
 
 -   `groupId`  (optional)
+-   `agentAddress`  (optional) — Filter to show only messages where this agent is a recipient
 -   `numOfRecentEmails`  or  `limit`  (default: 10)
 
 **`GET /messages/:messageId`**  
@@ -252,51 +262,8 @@ Query parameters:
 
 If ambiguous across threads, returns 400 with matching thread IDs.
 
-**`GET /threads/:threadId`**  
+**`GET /threads/:threadId`**
 Fetch a full thread with all messages in order.
-
-**`GET /messages/by-name/:agentAddress`**  
-Get messages where the agent is a recipient.
-
-Query parameters:
-
--   `groupId`  (optional)
--   `numOfRecentEmails`  or  `limit`  (default: 10)
-
-Filters by  `to`  containing the agent.
-
-----------
-
-## Development
-
-### Running Tests
-
-```bash
-npm test
-
-```
-
-Vitest will run the unit/integration suites. The Supertest-based API specs require the ability to open a local port.
-
-### Building for Production
-
-```bash
-npm run build
-npm start
-
-```
-
-### Docker Deployment
-
-Build and run with Docker (uses node:20-slim base):
-
-```bash
-docker build -t agent-email-mcp .
-docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
-
-```
-
-The  `/data`  volume persists your SQLite database and configuration between container restarts.
 
 ----------
 

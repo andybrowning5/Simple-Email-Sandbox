@@ -1,12 +1,10 @@
 {
   "id": "@Team",
-  "createdAt": "2025-11-25T21:12:53.300Z",
+  "createdAt": "2025-11-26T00:38:22.985Z",
   "agents": [
     "CEO",
     "PM",
-    "Dev1",
-    "Dev2",
-    "Dev3"
+    "Dev1"
   ],
   "threads": []
 }

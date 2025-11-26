@@ -148,37 +148,6 @@ export function createApp(dbService: DatabaseService): express.Express {
     }
   });
 
-  app.get("/agents", (req: express.Request, res: express.Response) => {
-    const groupId = resolveGroupId(req, res, dbService);
-    if (!groupId) return;
-
-    try {
-      const group = dbService.getGroup(groupId);
-      if (!group) {
-        res.status(404).json({
-          success: false,
-          message: `Group ${groupId} not found`
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: {
-          groupId: group.id,
-          agents: group.agents
-        }
-      });
-    } catch (error) {
-      console.error("Error listing agents:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
-
   app.post("/emails/write", (req: express.Request, res: express.Response) => {
     const { groupId, from, to, subject, body } = req.body;
 
@@ -430,11 +399,14 @@ export function createApp(dbService: DatabaseService): express.Express {
 
   app.get("/inbox/short", (req: express.Request, res: express.Response) => {
     const limit = parseLimit(req.query.numOfRecentEmails ?? req.query.limit, DEFAULT_LIMIT);
+    const agentAddress = typeof req.query.agentAddress === "string" ? req.query.agentAddress : undefined;
     const groupId = resolveGroupId(req, res, dbService);
     if (!groupId) return;
 
     try {
-      const messages = dbService.listMessagesByGroup(groupId, limit).map(serializeShortMessage);
+      const messages = agentAddress
+        ? dbService.listMessagesForAgent(agentAddress, groupId, limit).map(serializeShortMessage)
+        : dbService.listMessagesByGroup(groupId, limit).map(serializeShortMessage);
       res.json({
         success: true,
         data: messages
@@ -451,11 +423,17 @@ export function createApp(dbService: DatabaseService): express.Express {
 
   app.get("/inbox", (req: express.Request, res: express.Response) => {
     const limit = parseLimit(req.query.numOfRecentEmails ?? req.query.limit, DEFAULT_LIMIT);
+    const agentAddress = typeof req.query.agentAddress === "string" ? req.query.agentAddress : undefined;
     const groupId = resolveGroupId(req, res, dbService);
     if (!groupId) return;
 
+    //console.log("[/inbox] agentAddress:", agentAddress, "groupId:", groupId, "limit:", limit);
+
     try {
-      const messages = dbService.listMessagesByGroup(groupId, limit).map(serializeMessage);
+      const messages = agentAddress
+        ? dbService.listMessagesForAgent(agentAddress, groupId, limit).map(serializeMessage)
+        : dbService.listMessagesByGroup(groupId, limit).map(serializeMessage);
+      console.log("[/inbox] Returning", messages.length, "messages");
       res.json({
         success: true,
         data: messages
@@ -559,38 +537,6 @@ export function createApp(dbService: DatabaseService): express.Express {
       });
     } catch (error) {
       console.error("Error reading thread:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
-
-  app.get("/messages/by-name/:agentAddress", (req: express.Request, res: express.Response) => {
-    const { agentAddress } = req.params;
-    const groupId = typeof req.query.groupId === "string" ? req.query.groupId : undefined;
-    const limit = parseLimit(req.query.numOfRecentEmails ?? req.query.limit, DEFAULT_LIMIT);
-
-    try {
-      if (groupId) {
-        const group = dbService.getGroup(groupId);
-        if (!group) {
-          res.status(404).json({
-            success: false,
-            message: `Group ${groupId} not found`
-          });
-          return;
-        }
-      }
-
-      const messages = dbService.listMessagesForAgent(agentAddress, groupId, limit).map(serializeMessage);
-      res.json({
-        success: true,
-        data: messages
-      });
-    } catch (error) {
-      console.error("Error reading inbox by agent:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",

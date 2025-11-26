@@ -239,20 +239,26 @@ export class DatabaseService {
 
   listMessagesForAgent(agent: AgentAddress, groupId?: GroupId, limit?: number): Message[] {
     const hasLimit = typeof limit === "number" && limit > 0;
+
+    // Use JSON_EACH to search within the to_agents JSON array
     const query = groupId
-      ? `SELECT thread_id, message_id FROM messages WHERE group_id = ? ORDER BY id DESC${hasLimit ? " LIMIT ?" : ""}`
-      : `SELECT thread_id, message_id FROM messages ORDER BY id DESC${hasLimit ? " LIMIT ?" : ""}`;
+      ? `SELECT DISTINCT m.thread_id, m.message_id
+         FROM messages m, json_each(m.to_agents)
+         WHERE m.group_id = ? AND json_each.value = ?
+         ORDER BY m.id DESC${hasLimit ? " LIMIT ?" : ""}`
+      : `SELECT DISTINCT m.thread_id, m.message_id
+         FROM messages m, json_each(m.to_agents)
+         WHERE json_each.value = ?
+         ORDER BY m.id DESC${hasLimit ? " LIMIT ?" : ""}`;
 
     const stmt = this.db.prepare(query);
     const rows = (groupId
-      ? (hasLimit ? stmt.all(groupId, limit) : stmt.all(groupId))
-      : (hasLimit ? stmt.all(limit) : stmt.all())) as { thread_id: string; message_id: string }[];
+      ? (hasLimit ? stmt.all(groupId, agent, limit) : stmt.all(groupId, agent))
+      : (hasLimit ? stmt.all(agent, limit) : stmt.all(agent))) as { thread_id: string; message_id: string }[];
 
-    const messages = rows
+    return rows
       .map(row => this.getMessage(row.thread_id, row.message_id))
       .filter(m => m !== null) as Message[];
-
-    return messages.filter(m => m.to.includes(agent));
   }
 
   // ===== UTILITY OPERATIONS =====

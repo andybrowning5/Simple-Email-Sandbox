@@ -95,29 +95,7 @@ server.addTool({
     "List all groups and agents configured in the Simple Email Sandbox.",
   annotations: { readOnlyHint: true, idempotentHint: true },
   execute: async () => {
-    return await callApi("groups", "GET");
-  }
-});
-
-server.addTool({
-  name: "list_agents",
-  description: "List all agents in a specific group.",
-  annotations: { readOnlyHint: true, idempotentHint: true },
-  parameters: z.object({
-    groupId: groupIdSchema
-      .optional()
-      .describe(
-        "Group to list agents from. Required when multiple groups exist."
-      )
-  }),
-  execute: async args => {
-    const result = await callApi<{ groupId: string; agents: string[] }>(
-      "agents",
-      "GET",
-      {
-        query: { groupId: args.groupId }
-      }
-    );
+    const result = await callApi("groups", "GET");
     return {
       content: [
         {
@@ -265,9 +243,12 @@ server.addTool({
     limit: limitSchema.optional()
   }),
   execute: async args => {
-    const path = `messages/by-name/${encodeURIComponent(args.agentAddress)}`;
-    const result = await callApi(path, "GET", {
-      query: { groupId: args.groupId, limit: args.limit }
+    const result = await callApi("inbox/short", "GET", {
+      query: {
+        groupId: args.groupId,
+        agentAddress: args.agentAddress,
+        limit: args.limit
+      }
     });
     return {
       content: [
@@ -300,9 +281,12 @@ server.addTool({
     limit: limitSchema.optional()
   }),
   execute: async args => {
-    const path = `messages/by-name/${encodeURIComponent(args.agentAddress)}`;
-    const result = await callApi(path, "GET", {
-      query: { groupId: args.groupId, limit: args.limit }
+    const result = await callApi("inbox", "GET", {
+      query: {
+        groupId: args.groupId,
+        agentAddress: args.agentAddress,
+        limit: args.limit
+      }
     });
     return {
       content: [
@@ -355,35 +339,6 @@ server.addTool({
   execute: async args => {
     const path = `threads/${encodeURIComponent(args.threadId)}`;
     const result = await callApi(path, "GET");
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
-  }
-});
-
-server.addTool({
-  name: "messages_for_agent",
-  description: "List messages where the agent is a recipient.",
-  annotations: { readOnlyHint: true, idempotentHint: true },
-  parameters: z.object({
-    agentAddress: z.string().min(1, "Agent address is required."),
-    groupId: groupIdSchema
-      .optional()
-      .describe(
-        "Optional group filter. Required when multiple groups exist."
-      ),
-    limit: limitSchema.optional()
-  }),
-  execute: async args => {
-    const path = `messages/by-name/${encodeURIComponent(args.agentAddress)}`;
-    const result = await callApi(path, "GET", {
-      query: { groupId: args.groupId, limit: args.limit }
-    });
     return {
       content: [
         {
