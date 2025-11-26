@@ -4,7 +4,7 @@
 
 Traditional options like configuring Gmail accounts are slow and permission-heavy. SES is built for blazing-fast prototyping—no real email infrastructure needed.
 
-----------
+---
 
 ## Quick Start: Zero to Working MCP Server
 
@@ -24,21 +24,21 @@ npm install
 
 Choose either Docker or npm:
 
-**Option A: Using npm (recommended for development)**
+#### Option A: Using npm (recommended for development)
 ```bash
 npm run build
 npm run start
 ```
 
-**Option B: Using Docker**
+#### Option B: Using Docker
 ```bash
 docker build -t agent-email-mcp .
 docker run --rm -it -p 3000:3000 -v $(pwd)/data:/data agent-email-mcp
 ```
 
-Note: to restart the email server from scratch, delete the /data directory or use the frontend UI and select Settings>Reset Database.
-
 The API server will start on `http://localhost:3000`. On first run, you'll go through an initialization wizard to set up your group and agent addresses.
+
+> **Note:** To restart the email server from scratch, delete the `/data` directory or use the frontend UI and select **Settings > Reset Database**.
 
 ![CLI Initialization Wizard](Images/CLI-demo.png)
 
@@ -51,7 +51,7 @@ MCP_PORT=8080 MCP_HOST=0.0.0.0 API_BASE_URL=http://localhost:3000 npx tsx mcp/mc
 
 The MCP server will start on `http://0.0.0.0:8080/mcp`.
 
-----------
+---
 
 ## Optional: Web UI
 
@@ -72,10 +72,12 @@ The dev server automatically proxies API calls to `http://localhost:3000`.
 
 ![Frontend Demo](Images/frontend-demo.png)
 
-----------
+---
 
-### Connecting to VS Code agents
+## Connecting to VS Code Agents
+
 Now connect the MCP server to your AI agent in VS Code:
+
 1. Open VS Code with an AI agent (like Claude)
 2. Click the **tool icon** in the agent pane
 3. Click the **MCP logo** in the top right of the search pane
@@ -91,6 +93,8 @@ Your VS Code settings will be automatically updated:
   }
 }
 ```
+
+---
 
 ## Connecting from n8n Cloud via ngrok
 
@@ -130,7 +134,7 @@ Copy the public HTTPS URL, for example:
 https://your-subdomain.ngrok-free.dev
 ```
 
-⚠️ **Important:** do not use `http://127.0.0.1:4040` (that's ngrok's local dashboard, not the public tunnel).
+> ⚠️ **Important:** Do not use `http://127.0.0.1:4040` (that's ngrok's local dashboard, not the public tunnel).
 
 ### Step 3: Configure the MCP Client Tool in n8n
 
@@ -146,7 +150,7 @@ In n8n Cloud:
 5. Set **Authentication** to `None` (for local development)
 6. Choose **All tools** (or select specific SES tools once you know their names)
 
-----------
+---
 
 ## What You Get
 
@@ -157,7 +161,7 @@ SES creates an isolated email network where:
 - **Everything is local** — No external services, no API keys, fully private
 - **Instant setup** — No configuration headaches
 
-----------
+---
 
 ## Architecture
 
@@ -168,7 +172,7 @@ SES creates an isolated email network where:
 - **Initialization Wizard** — First-run setup creates your group and agent addresses
 - **Docker-ready** — Containerized with persistent storage at `/data`
 
-----------
+---
 
 ## API Reference
 
@@ -178,10 +182,10 @@ Most read endpoints accept an optional `groupId` query parameter. If omitted, th
 
 ### Groups and Metadata
 
-**`GET /groups`**  
+#### `GET /groups`
 List all groups with their agents and thread IDs.
 
-Response:
+**Response:**
 ```json
 {
   "groups": [
@@ -196,10 +200,10 @@ Response:
 
 ### Sending Emails
 
-**`POST /emails/write`**  
+#### `POST /emails/write`
 Send a new email and start a thread.
 
-Request:
+**Request:**
 ```json
 {
   "groupId": "@team",
@@ -210,7 +214,7 @@ Request:
 }
 ```
 
-Response:
+**Response:**
 ```json
 {
   "success": true,
@@ -222,10 +226,10 @@ Response:
 }
 ```
 
-**`POST /emails/reply`**  
+#### `POST /emails/reply`
 Reply to one person in a thread.
 
-Request:
+**Request:**
 ```json
 {
   "threadId": "uuid",
@@ -235,12 +239,12 @@ Request:
 }
 ```
 
-Recipients: the sender of the target message (excluding the replier). Subject auto-prefixes `Re:` if needed.
+**Recipients:** The sender of the target message (excluding the replier). Subject auto-prefixes `Re:` if needed.
 
-**`POST /emails/reply-all`**  
+#### `POST /emails/reply-all`
 Reply to everyone on a message.
 
-Request:
+**Request:**
 ```json
 {
   "threadId": "uuid",
@@ -250,47 +254,45 @@ Request:
 }
 ```
 
-Recipients: target message `from` + `to`, minus the replier. Subject auto-prefixes `Re:` if needed.
+**Recipients:** Target message `from` + `to`, minus the replier. Subject auto-prefixes `Re:` if needed.
 
 ### Reading Emails
 
-**`GET /inbox`**  
+#### `GET /inbox`
 Get the most recent full messages for a group or a specific agent's inbox.
 
-Query parameters:
+**Query parameters:**
 
 - `groupId` (optional)
 - `agentAddress` (optional) — Filter to show only messages where this agent is a recipient
 - `numOfRecentEmails` or `limit` (default: 10)
 
-Examples:
-
+**Examples:**
 - `/inbox?groupId=@team` — All messages in the group
 - `/inbox?groupId=@team&agentAddress=alice` — Only messages TO alice
 
-**`GET /inbox/short`**  
+#### `GET /inbox/short`
 Same as `/inbox` but with 500-character body previews.
 
-Query parameters:
+**Query parameters:**
 
 - `groupId` (optional)
 - `agentAddress` (optional) — Filter to show only messages where this agent is a recipient
 - `numOfRecentEmails` or `limit` (default: 10)
 
-**`GET /messages/:messageId`**  
+#### `GET /messages/:messageId`
 Fetch a specific message.
 
-Query parameters:
-
+**Query parameters:**
 - `threadId` (recommended)
 - `groupId` (optional)
 
-If ambiguous across threads, returns 400 with matching thread IDs.
+> **Note:** If ambiguous across threads, returns 400 with matching thread IDs.
 
-**`GET /threads/:threadId`**  
+#### `GET /threads/:threadId`
 Fetch a full thread with all messages in order.
 
-----------
+---
 
 ## Project Structure
 ```
